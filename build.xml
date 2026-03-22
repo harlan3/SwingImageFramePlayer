@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="SwingImageFramePlayer" default="jar" basedir=".">
+
+    <property name="src.dir" value="."/>
+    <property name="bin.dir" value="bin"/>
+    <property name="build.dir" value="build"/>
+    <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="dist.dir" value="dist"/>
+
+    <target name="clean">
+        <delete dir="${bin.dir}"/>
+        <delete dir="${build.dir}"/>
+        <delete dir="${dist.dir}"/>
+    </target>
+
+    <target name="prepare">
+        <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${dist.dir}"/>
+    </target>
+
+    <target name="compile" depends="prepare">
+      <javac srcdir="${src.dir}" destdir="${classes.dir}" source="21" target="21" debuglevel="${debuglevel}">
+         <classpath>
+         </classpath>
+      </javac>
+        <!-- for runnable jar file -->
+        <copy todir="${classes.dir}/image_frames">
+            <fileset dir="image_frames"/>
+        </copy>
+        <!-- for Eclipse IDE. Must run ant to copy image files to bin after buildig project in Eclipse. -->
+        <copy todir="${bin.dir}/image_frames">
+            <fileset dir="image_frames"/>
+        </copy>
+    </target>
+
+    <target name="jar" depends="compile">
+      <jar destfile="${dist.dir}/SwingImageFramePlayer.jar" basedir="${classes.dir}">
+         <manifest>
+            <attribute name="Main-Class" value="orbisoftware.SwingImageFramePlayer"/>
+         </manifest>
+      </jar>
+   </target>
+   
+    <target name="run" depends="jar">
+        <java jar="${dist.dir}/${jar.name}" fork="true"/>
+    </target>
+
+</project>

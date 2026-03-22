@@ -1,0 +1,1 @@
+ffmpeg -ss 01:21:05 -i B1_t00.mkv -to 01:33:22 -r 24 image_frames/frame%05d.png
