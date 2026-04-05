@@ -10,6 +10,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * Simple Swing image-frame stream viewer.
@@ -40,11 +43,17 @@ public class SwingImageFramePlayer extends JFrame {
 
     private Timer playbackTimer;
     private int currentFrameIndex = 0;
-    private int fps = 24;
+    private float fps = 0.1f;
     private boolean playing = true;
+    private boolean randomSeqMode = false; // Random / Sequential mode
+    
+    private final float epsilon = 0.00001f;
 
     public SwingImageFramePlayer() {
         super("Simple Frame Stream Viewer");
+
+        System.setProperty("sun.java2d.d3d", "true");
+        System.setProperty("sun.java2d.ddforcevram", "true"); 
 
         this.frameResourceNames = loadFrameIndex();
         if (frameResourceNames.isEmpty()) {
@@ -56,7 +65,7 @@ public class SwingImageFramePlayer extends JFrame {
 
         buildUi();
         loadAndShowFrame(0);
-        startPlayback();
+        updateTimerDelay();
         setVisible(true);
     }
 
@@ -78,6 +87,7 @@ public class SwingImageFramePlayer extends JFrame {
 
         JButton playPauseButton = new JButton("Pause");
         JButton restartButton = new JButton("Restart");
+        JButton randSeqButton = new JButton("Random");
         JButton prevButton = new JButton("Prev");
         JButton nextButton = new JButton("Next");
         JButton slowerButton = new JButton("- FPS");
@@ -86,10 +96,10 @@ public class SwingImageFramePlayer extends JFrame {
         playPauseButton.addActionListener(e -> {
             playing = !playing;
             if (playing) {
-                playbackTimer.start();
+            	updateTimerDelay();
                 playPauseButton.setText("Pause");
             } else {
-                playbackTimer.stop();
+            	playbackTimer.cancel();
                 playPauseButton.setText("Play");
             }
             updateStatus();
@@ -97,6 +107,15 @@ public class SwingImageFramePlayer extends JFrame {
 
         restartButton.addActionListener(e -> loadAndShowFrame(0));
 
+        randSeqButton.addActionListener(e -> {
+        	randomSeqMode = !randomSeqMode;
+        	
+        	if (randomSeqMode)
+        		randSeqButton.setText("Sequential");
+        	else
+        		randSeqButton.setText("Random");
+        });
+        
         prevButton.addActionListener(e -> {
             int prev = currentFrameIndex - 1;
             if (prev < 0) {
@@ -114,19 +133,36 @@ public class SwingImageFramePlayer extends JFrame {
         });
 
         slowerButton.addActionListener(e -> {
-            fps = Math.max(1, fps - 5);
+        	
+        	if (fps < 1.01f)
+        		fps -= 0.1;
+        	else
+        		fps = Math.max(1, (int) fps - 5.0f);
+        	
+        	if (fps < 0.1f)
+        		fps = 0.1f;
+        	
             updateTimerDelay();
             updateStatus();
         });
 
         fasterButton.addActionListener(e -> {
-            fps = Math.min(120, fps + 5);
+        	
+        	if (fps < 1.01f)
+        		fps += 0.1;
+        	else
+        		fps = Math.min(30, (int) fps + 5.0f);
+        	
+        	if (Math.abs(fps - 1.1) < epsilon)
+        		fps = 5.0f;
+        	
             updateTimerDelay();
             updateStatus();
         });
 
         buttons.add(playPauseButton);
         buttons.add(restartButton);
+        buttons.add(randSeqButton);
         buttons.add(prevButton);
         buttons.add(nextButton);
         buttons.add(slowerButton);
@@ -141,21 +177,32 @@ public class SwingImageFramePlayer extends JFrame {
         return root;
     }
 
-    private void startPlayback() {
-        playbackTimer = new Timer(1000 / Math.max(1, fps), e -> {
-            int next = currentFrameIndex + 1;
-            if (next >= frameResourceNames.size()) {
-                next = 0;
-            }
-            loadAndShowFrame(next);
-        });
-        playbackTimer.start();
-    }
-
     private void updateTimerDelay() {
-        if (playbackTimer != null) {
-            playbackTimer.setDelay(1000 / Math.max(1, fps));
-        }
+    	
+    	if (playbackTimer != null)
+    		playbackTimer.cancel();
+    	
+    	playbackTimer = new Timer();
+    	
+    	playbackTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+            	int next;
+            	
+            	if (randomSeqMode) {
+            		Random rand = new Random();
+            		int randomNum = rand.nextInt(frameResourceNames.size());
+            		next = randomNum;
+            	}
+            	else {
+            		next = currentFrameIndex + 1;
+	                if (next >= frameResourceNames.size())
+	                    next = 0;
+            	}
+            	
+                loadAndShowFrame(next);
+            }
+        }, 0, (long) (1.0f/fps * 1000));
     }
 
     private void loadAndShowFrame(int index) {
@@ -187,7 +234,7 @@ public class SwingImageFramePlayer extends JFrame {
 
     private void updateStatus() {
         statusLabel.setText(
-                "FPS: " + fps +
+                "FPS: " + String.format("%.1f", fps)  +
                 "   Frame: " + currentFrameIndex + "/" + (frameResourceNames.size() - 1) +
                 "   State: " + (playing ? "Playing" : "Paused") +
                 "   File: " + frameResourceNames.get(currentFrameIndex)
@@ -225,8 +272,7 @@ public class SwingImageFramePlayer extends JFrame {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             try {
-                SwingImageFramePlayer viewer = new SwingImageFramePlayer();
-                viewer.setVisible(true);
+                new SwingImageFramePlayer();
             } catch (Exception ex) {
                 ex.printStackTrace();
                 JOptionPane.showMessageDialog(
@@ -295,6 +341,7 @@ public class SwingImageFramePlayer extends JFrame {
 
             Graphics2D g2 = backBuffer.createGraphics();
             try {
+            	
                 g2.setColor(Color.BLACK);
                 g2.fillRect(0, 0, w, h);
 
@@ -310,11 +357,13 @@ public class SwingImageFramePlayer extends JFrame {
                     return;
                 }
 
-                g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                        RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                g2.setRenderingHint(RenderingHints.KEY_RENDERING,
-                        RenderingHints.VALUE_RENDER_QUALITY);
-
+                g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
+                g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+                g2.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_SPEED);
+                g2.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_DISABLE); 
+                
                 int imageW = sourceImage.getWidth();
                 int imageH = sourceImage.getHeight();
 
