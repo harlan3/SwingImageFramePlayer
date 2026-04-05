@@ -43,9 +43,9 @@ public class SwingImageFramePlayer extends JFrame {
 
     private Timer playbackTimer;
     private int currentFrameIndex = 0;
-    private float fps = 0.1f;
+    private float fps = 1.0f;
     private boolean playing = true;
-    private boolean randomSeqMode = false; // Random / Sequential mode
+    private boolean randomSeqMode = true; // Random / Sequential mode
     
     private final float epsilon = 0.00001f;
 
@@ -199,6 +199,15 @@ public class SwingImageFramePlayer extends JFrame {
 	                if (next >= frameResourceNames.size())
 	                    next = 0;
             	}
+        		
+        		try {
+                	Random rand = new Random();
+            		int randomNum = rand.nextInt(200);
+					Thread.sleep(randomNum); // Add a random sleep value to avoid cyclic updates
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
             	
                 loadAndShowFrame(next);
             }
